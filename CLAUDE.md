@@ -113,3 +113,35 @@ Valid values: 0 (disabled), 5, 15, 30, 60, 90, 120, 150, 180, 240, 360, 444
 - `{drive}\binaries.x86fre\` - Free (production) build output
 - `{drive}\binaries.x86chk\` - Checked (debug) build output
 - `{drive}\{buildtag}_{sku}.iso` - Generated ISO files
+
+## Security Vulnerability Analysis
+
+This codebase contains several historically significant vulnerabilities (MS03-026, MS04-011, MS08-067). When analyzing known vulnerabilities:
+
+### Lessons Learned
+
+1. **Verify against actual exploit code**: Don't stop at the first plausible vulnerability. Cross-reference with:
+   - Metasploit module source code
+   - Exploit-DB technical details
+   - Buffer sizes mentioned in exploits (e.g., MAX_PATH vs 1024 chars)
+   - Actual RPC function names targeted
+
+2. **Exploit titles can be misleading**: Vulnerability names don't always match the vulnerable function. Example: "DsRolerUpgradeDownlevelServer Overflow" (MS04-011) actually targets `DsRolerGetDatabaseFacts`.
+
+3. **Multiple vulnerabilities may exist**: Finding vulnerable code doesn't mean you found THE vulnerability. The codebase may have several overflow points - only one was weaponized.
+
+4. **ASSERT() provides zero production protection**: Debug-only checks like `ASSERT(len <= MAX)` are compiled out in Release builds. These are red flags, not safeguards.
+
+5. **Trace the full RPC path**: For RPC vulnerabilities, trace from:
+   - IDL interface definition (parameter types, endpoints)
+   - RPC dispatcher function (input validation)
+   - Internal implementation (actual buffer operations)
+
+6. **Cross-check should ask the right question**: When verifying analysis, ask "find the vulnerability" independently rather than "verify my analysis" - avoids confirmation bias.
+
+### Vulnerability Documentation
+
+Detailed analyses are in:
+- `MS03-026-claude.md` - Blaster worm (DCOM RPC)
+- `MS04-011-claude.md` - Sasser worm (LSASS)
+- `MS08-067-claude.md` - Conficker worm (Server Service)
