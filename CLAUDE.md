@@ -157,6 +157,30 @@ This codebase contains several historically significant vulnerabilities (MS03-02
 
 6. **Cross-check should ask the right question**: When verifying analysis, ask "find the vulnerability" independently rather than "verify my analysis" - avoids confirmation bias.
 
+### Vulnerability Analysis Document Requirements
+
+Each vulnerability analysis document MUST include:
+
+1. **Executive Summary**: CVE, bulletin, severity, affected service, attack vector
+
+2. **Educational Overview** (REQUIRED): A detailed section explaining the vulnerability for students learning computer security, as if giving a high school CS lecture. Must include:
+   - Simple analogies and real-world comparisons
+   - ASCII diagrams illustrating concepts
+   - Step-by-step explanation of how the vulnerability works
+   - Comparison with other vulnerabilities (if applicable)
+   - Key lessons for programmers
+   - Glossary of technical terms
+
+3. **Technical Analysis**:
+   - Vulnerable function location and code excerpts
+   - Attack vector and RPC entry points
+   - Buffer layouts and memory diagrams
+   - Exploitation details
+
+4. **Historical Context**: Worm/exploit impact, timeline, real-world consequences
+
+5. **Remediation**: How the vulnerability was fixed, modern defenses
+
 ### Vulnerability Documentation
 
 Detailed analyses are in:
