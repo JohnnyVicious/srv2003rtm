@@ -15,6 +15,158 @@ This document analyzes the MS03-026 vulnerability as found in the Windows Server
 
 ---
 
+## Educational Overview: Understanding Buffer Overflows
+
+*This section explains the vulnerability concepts for students learning about computer security.*
+
+### What Is a Buffer?
+
+Imagine you have a row of 16 mailboxes at an apartment building, numbered 0 through 15. Each mailbox can hold exactly one letter. This row of mailboxes is like a **buffer** in computer memory—a fixed-size container that holds data.
+
+```
+Buffer (16 slots):
+┌───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───┐
+│ 0 │ 1 │ 2 │ 3 │ 4 │ 5 │ 6 │ 7 │ 8 │ 9 │10 │11 │12 │13 │14 │15 │
+└───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┘
+```
+
+In this vulnerability, the buffer is designed to hold a **computer name**, which Windows limits to 15 characters plus a null terminator (a special "end of string" marker), totaling 16 slots.
+
+### What Is a Buffer Overflow?
+
+A buffer overflow happens when you try to put more data into a buffer than it can hold. Using our mailbox analogy: what if someone tried to deliver 50 letters to our 16 mailboxes?
+
+```
+Trying to store "AAAAAAAAAAAAAAAAAAAAAAAAA" (25 A's) in 16 slots:
+
+Buffer (16 slots):              OVERFLOW ZONE (other memory):
+┌───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───┐
+│ A │ A │ A │ A │ A │ A │ A │ A │ A │ A │ A │ A │ A │ A │ A │ A │ A │ A │ A │ A │ A │ A │ A │ A │ A │
+└───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┘
+                                                                ▲
+                                                                │
+                                            The extra letters spill over into
+                                            memory that belongs to other data!
+```
+
+### The Stack: Where Local Variables Live
+
+When a function runs, it needs temporary storage space for its local variables. This space comes from a region of memory called **the stack**. The stack is organized like a tower of trays in a cafeteria—you add trays to the top and remove them from the top.
+
+```
+THE STACK (grows downward in memory):
+
+         High Memory Addresses
+    ┌─────────────────────────────────┐
+    │  Return Address                 │ ← Where to go when function ends
+    ├─────────────────────────────────┤
+    │  Saved Frame Pointer (EBP)      │ ← Helps manage stack frames
+    ├─────────────────────────────────┤
+    │  Local Variable 1               │
+    ├─────────────────────────────────┤
+    │  Local Variable 2               │
+    ├─────────────────────────────────┤
+    │  Buffer (our 16-char array)     │ ← Data is written here
+    ├─────────────────────────────────┤
+    │        ... more ...             │
+    └─────────────────────────────────┘
+         Low Memory Addresses
+```
+
+**The Key Insight**: When we overflow a buffer on the stack, we overwrite whatever is stored ABOVE it in the stack diagram. This includes the **return address**—the memory location where the CPU should jump when the current function finishes.
+
+### How Attackers Exploit Buffer Overflows
+
+1. **Find a vulnerable buffer**: The attacker discovers that `GetMachineName()` copies a computer name into a 16-character buffer without checking the length.
+
+2. **Craft malicious input**: Instead of a normal computer name like "WEBSERVER1", the attacker sends:
+   ```
+   \\AAAAAAAAAAAAAAAAAAAA[shellcode][return_address]\share\file
+   ```
+
+3. **Overflow overwrites the return address**: When the function copies this long string, it overflows the buffer and overwrites the return address with an address chosen by the attacker.
+
+4. **Hijack program execution**: When the function tries to return, instead of going back to the normal calling code, it jumps to the attacker's **shellcode**—a small program embedded in the attack payload.
+
+```
+BEFORE OVERFLOW:                      AFTER OVERFLOW:
+┌─────────────────────┐               ┌─────────────────────┐
+│ Return: 0x77E81234  │               │ Return: 0x0012FF88  │ ← Points to shellcode!
+├─────────────────────┤               ├─────────────────────┤
+│ Saved EBP           │               │ AAAA (0x41414141)   │ ← Corrupted
+├─────────────────────┤               ├─────────────────────┤
+│ Buffer[15]          │               │ AAAA                │
+│ Buffer[14]          │               │ AAAA                │
+│    ...              │               │ ...                 │
+│ Buffer[0]           │               │ AAAA                │
+└─────────────────────┘               └─────────────────────┘
+```
+
+### Why Was This Code Vulnerable?
+
+The vulnerable code in `GetMachineName()` uses a simple **while loop** to copy characters:
+
+```c
+while ( *pwszTemp != L'\\' )
+    *pwszServerName++ = *pwszTemp++;
+```
+
+This code says: "Keep copying characters until you find a backslash." But it never asks: "Have I run out of room in the destination buffer?" It's like telling someone to keep putting letters in mailboxes until they see a red envelope—but there are no red envelopes in the pile.
+
+**The Safe Alternative** would be:
+```c
+int count = 0;
+while ( *pwszTemp != L'\\' && count < MAX_COMPUTERNAME_LENGTH )
+{
+    *pwszServerName++ = *pwszTemp++;
+    count++;
+}
+```
+
+This version adds a **bounds check**: it stops copying either when it finds a backslash OR when it has copied the maximum allowed number of characters.
+
+### The Blaster Worm: Real-World Impact
+
+In August 2003, just three weeks after Microsoft released a patch for this vulnerability, an 18-year-old wrote the **Blaster worm** (also called "LoveSan" or "MSBlast"). The worm:
+
+1. **Scanned the internet** for computers with port 135 open
+2. **Exploited MS03-026** to run code on vulnerable machines
+3. **Downloaded itself** to the victim computer
+4. **Repeated the process** to spread further
+
+Within days, hundreds of thousands of computers were infected. The worm contained this message:
+```
+I just want to say LOVE YOU SAN!!
+billy gates why do you make this possible? Stop making money and fix your software!!
+```
+
+### Key Lessons for Programmers
+
+1. **Never trust input sizes**: Always validate that input data fits in your buffers before copying.
+
+2. **Use safe string functions**: Instead of `strcpy()` or manual loops, use `strncpy()`, `StringCchCopy()`, or other bounds-checking functions.
+
+3. **Defense in depth**: Modern systems add multiple protections:
+   - **Stack canaries**: Secret values placed between buffers and return addresses that are checked before returning
+   - **ASLR (Address Space Layout Randomization)**: Randomizes memory locations so attackers can't predict where to jump
+   - **DEP (Data Execution Prevention)**: Marks the stack as non-executable so shellcode can't run there
+
+4. **Patch promptly**: The window between patch release and worm outbreak was only 26 days. Organizations that patched quickly were protected.
+
+### Glossary
+
+| Term | Definition |
+|------|------------|
+| **Buffer** | A fixed-size region of memory used to store data |
+| **Stack** | Memory region where function local variables and return addresses are stored |
+| **Return Address** | Memory location where execution should continue after a function ends |
+| **Shellcode** | Small piece of code injected by an attacker, usually to spawn a command shell |
+| **RPC** | Remote Procedure Call—a way for programs to execute functions on remote computers |
+| **DCOM** | Distributed Component Object Model—Microsoft's technology for communication between software components across a network |
+| **Worm** | Self-propagating malware that spreads automatically without user interaction |
+
+---
+
 ## Vulnerability Location
 
 | Component | Path |
