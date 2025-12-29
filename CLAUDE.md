@@ -114,6 +114,24 @@ Valid values: 0 (disabled), 5, 15, 30, 60, 90, 120, 150, 180, 240, 360, 444
 - `{drive}\binaries.x86chk\` - Checked (debug) build output
 - `{drive}\{buildtag}_{sku}.iso` - Generated ISO files
 
+## Git Workflow
+
+### Commit Practices
+
+- **Separate commits for each scope**: Each logically distinct change should be its own commit. For example, when creating multiple analysis documents, commit each one separately rather than bundling them together.
+
+- **Descriptive commit messages**: Include:
+  - Brief summary line (what changed)
+  - Key technical details in the body
+  - Reference to relevant CVEs, functions, or files when applicable
+
+- **Atomic changes**: A commit should represent one complete, self-contained change. If you need to revert, you should be able to revert just that one thing.
+
+### Branch Strategy
+
+- `main` - Stable code
+- `study` - Research and analysis work (vulnerability analysis, documentation)
+
 ## Security Vulnerability Analysis
 
 This codebase contains several historically significant vulnerabilities (MS03-026, MS04-011, MS08-067). When analyzing known vulnerabilities:
