@@ -367,6 +367,24 @@ Both vulnerabilities exist in the same code path. MS06-040 was the first to be d
 
 5. **Defense in depth**: Enable /GS (stack buffer security check) to detect stack corruption
 
+## Cross-Check Notes
+
+*Codex verification identified the following nuances:*
+
+1. **Length checks are present**: Lines 174 and 192 enforce `pathLen + prefixLen <= MAX_PATH*2 - 1` before any copy, so inputs over 520 characters are rejected by this code path.
+
+2. **ConvertPathMacros shortens strings**: The `STRCPY` calls at lines 503/514 move data left within the buffer (removing `..`/`.` sequences), they don't expand beyond bounded length.
+
+3. **RPC limit clarification**: The `range(0, 64000)` applies to `OutbufLen` (output buffer size), not directly to `PathName`/`Prefix` string lengths.
+
+4. **Possible explanations for the real vulnerability**:
+   - The actual exploit may use a different code path not shown here
+   - This source may include partial fixes
+   - The vulnerability may involve integer overflow in length calculations
+   - Edge cases in prefix/separator handling (lines 182-184) may allow bypass
+
+The vulnerability was real and actively exploited (Wargbot, Mocbot), so the exploitable condition exists even if not immediately obvious in this code review.
+
 ## References
 
 - Microsoft Security Bulletin MS06-040
